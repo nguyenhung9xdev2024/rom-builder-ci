@@ -1,54 +1,84 @@
 env:
+    MANIFEST: https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs
+    DEVICE: a73xq
     OEM: samsung
-    CODENAME: a73xq
-    PLATFORM: sm7325
     COMMON: sm7325-common
-    CIRRUS_CI: true
-    CIRRUS_SHELL: bash
-    TARGET: m bacon -j16
-    ROM_NAME: PixysOS
-    PRODUCT_NAME: pixys_a73xq
-    VARIANT: userdebug
-    ROM_REPO: "https://github.com/PixysOS/manifest.git"
-    ROM_BRANCH: thirteen
-    DEVICE_REPO: "https://github.com/ROM-CUSTOM-SAMSUNG/android_device_samsung_a73xq.git"
-    DEVICE_BRANCH: thirteen
-    DEVICE_COMMON_REPO: "https://github.com/ROM-CUSTOM-SAMSUNG/android_device_samsung_sm7325-common.git"
-    DEVICE_COMMON_BRANCH: thirteen
-    VENDOR_REPO: "https://github.com/ROM-CUSTOM-SAMSUNG/android_vendor_samsung_a73xq.git"
-    VENDOR_BRANCH: thirteen
-    VENDOR_COMMON_REPO: "https://github.com/ROM-CUSTOM-SAMSUNG/android_vendor_samsung_sm7325-common.git"
-    VENDOR_COMMON_BRANCH: thirteen
-    KERNEL_REPO: "https://gitlab.com/nguyenhung9xdev2022/android_kernel_samsung_sm7325.git"
-    KERNEL_BRANCH: thirteen
-    USERNAME: nguyenhung9xdev2024
-    USERMAIL: nguyenhung9xdev2024
-    OUTPUT: PixysOS*.zip
+    DT_LINK: https://github.com/ITTECH-ROM/android_device_samsung_a73xq.git -b lineage-20
+    DT_PATH: device/$OEM/$DEVICE
+    DTCM_LINK: https://github.com/ITTECH-ROM/android_device_samsung_sm7325-common.git -b lineage-20
+    DTCM_PATH: device/$OEM/$COMMON
+    VT_LINK: https://github.com/ROM-CUSTOM-SAMSUNG/android_vendor_samsung_a73xq.git -b lineage-20
+    VT_PATH: vendor/$OEM/$DEVICE
+    VTCM_LINK: https://github.com/ROM-CUSTOM-SAMSUNG/android_vendor_samsung_sm7325-common.git -b lineage-20
+    VTCM_PATH: vendor/$OEM/$COMMON
+    KT_LINK: https://gitlab.com/nguyenhung9xdev2022/android_kernel_samsung_sm7325.git -b lineage-20
+    PLATFORM: sm7325
+    KT_PATH: kernel/$OEM/$PLATFORM
+    EXTRA_CMD: export SKIP_ABI_CHECKS=true
+    LUNCH_COMBO: lineage_${DEVICE}-userdebug
+    OUTPUT: lineage*.zip
 
 task:
-  name: "ROM Build"
-  timeout_in: 240m
-  trigger_type: manual
+  name: "Setting Up, Syncing, Building and Uploading..."
+  timeout_in: 940m  
   container:
       image: ghcr.io/nguyenhung9xdev2024/docker:arch
       cpu: 8
       memory: 32G
 
-# CLONE_SCRIPT_script: |
- #   if [ -z "$CIRRUS_PR" ]; then
- #     git clone --recursive --branch=$CIRRUS_BRANCH https://x-access-token:${CIRRUS_REPO_CLONE_TOKEN}@github.com/${CIRRUS_REPO_FULL_NAME}.git $CIRRUS_WORKING_DIR
-  #    git reset --hard $CIRRUS_CHANGE_IN_REPO
-  #  else
-  #    git clone --recursive https://x-access-token:${CIRRUS_REPO_CLONE_TOKEN}@github.com/${CIRRUS_REPO_FULL_NAME}.git $CIRRUS_WORKING_DIR
-  #    git fetch origin pull/$CIRRUS_PR/head:pull/$CIRRUS_PR
-   #   git reset --hard $CIRRUS_CHANGE_IN_REPO
-  #  fi    
 
-  SYNC_SCRIPT_script:
-      - curl -sL https://raw.githubusercontent.com/nguyenhung9xdev2024/rom-builder-ci/main/build.sh | bash
 
-  BUILD_SCRIPT_script:
-      - curl -sL https://raw.githubusercontent.com/nguyenhung9xdev2024/rom-builder-ci/main/sync_rom.sh | bash
+  Storage-Checker_script:
+      - df -h
+      - lsblk
+      - ls -l -a -h
+  
+  Sync_script:
+      - echo "============================"
+      - echo "Syncing The Sources..."
+      - echo "============================"
+      - mkdir -p ~/lineage
+      - cd ~/lineage
+      - repo init --depth=1 -u $MANIFEST
+      - repo sync -j8 --force-sync --no-tags --no-clone-bundle
+      - git clone $DT_LINK $DT_PATH
+      - git clone $DTCM_LINK $DTCM_PATH
+      - git clone $VT_LINK $VT_PATH
+      - git clone $VTCM_LINK $VTCM_PATH
+      - git clone $KT_LINK $KT_PATH
+      - rm -rf hardware/samsung
+      - git clone https://github.com/LineageOS/android_hardware_samsung.git -b lineage-20 hardware/samsung
+      - echo "============================"
+      - echo "Syncing Complete!"
+      - echo "============================"
 
-  UPLOAD_SCRIPT_script:
-      - curl -sL https://raw.githubusercontent.com/nguyenhung9xdev2024/rom-builder-ci/main/upload_rom.sh | bash
+  Build_script:
+      - echo "============================"
+      - echo "Starting the Build..."
+      - echo "============================"
+      - cd ~/work
+      - $EXTRA_CMD
+      - export USE_CCACHE=1
+      - export CCACHE_EXEC=/usr/bin/ccache
+      - ccache -M 50G
+      - . build/envsetup.sh
+      - lunch "$LUNCH_COMBO"
+      - mka -j31
+     
+  Upload_script:
+      - echo "============================"
+      - echo "Uploading the Build..."
+      - echo "============================"
+      - cd ~/work
+      - cd out/target/product/"$DEVICE"
+      - ls -lh
+      - pwd
+      - chmod 777 *
+      - curl --upload-file $(echo $OUTPUT) https://transfer.sh | tee link.txt && echo " "
+      - echo " "
+      - echo "============================"
+      - echo "Build Uploaded!"
+      - echo "Please see the link Below-  "
+      - echo "----------------------------"
+      - cat link.txt && echo " "
+      - echo "============================"
