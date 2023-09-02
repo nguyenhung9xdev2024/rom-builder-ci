@@ -20,7 +20,7 @@ env:
 
 task:
   name: "Setting Up, Syncing, Building and Uploading..."
-  timeout_in: 940m  
+  timeout_in: 240m  
   container:
       image: ghcr.io/nguyenhung9xdev2024/docker:arch
       cpu: 8
